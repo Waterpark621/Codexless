@@ -1,7 +1,18 @@
 import { createRequire } from "node:module";
+import { BROWSER_FALLBACK_CONTINUATION_FIELD } from "./browser-elicitation-bridge.mjs";
 
 const require = createRequire(import.meta.url);
 const z = require("zod/v4");
+
+const browserFallbackContinuationSchema = z.object({
+  requestState: z.string().min(1).max(8_192),
+  response: z.object({
+    action: z.enum(["accept", "decline", "cancel"]),
+  }).strict(),
+}).strict().describe(
+  "Compatibility continuation for a Browser permission request when the MCP client cannot render native elicitation. " +
+  "The signed requestState is bound to the exact Browser tool and original business arguments; it is not user-approval evidence."
+);
 
 export function registerBrowserPreviewTools(server, browser, { elicitationBridge = null } = {}) {
   if (!browser) return;
@@ -557,16 +568,31 @@ export function registerBrowserPreviewTools(server, browser, { elicitationBridge
 function browserElicitationRegistrationServer(server, elicitationBridge) {
   return {
     registerTool(name, ...args) {
+      const options = args[0];
+      if (options?.inputSchema && typeof options.inputSchema.extend === "function") {
+        args[0] = {
+          ...options,
+          inputSchema: options.inputSchema.extend({
+            [BROWSER_FALLBACK_CONTINUATION_FIELD]: browserFallbackContinuationSchema.optional(),
+          }),
+        };
+      }
+
       const handlerIndex = args.length - 1;
       const handler = args[handlerIndex];
       if (typeof handler === "function") {
         args[handlerIndex] = async (input, ctx) => {
+          const {
+            [BROWSER_FALLBACK_CONTINUATION_FIELD]: fallbackContinuation = null,
+            ...businessInput
+          } = input;
           try {
             return await elicitationBridge.run({
               toolName: name,
-              input,
+              input: businessInput,
               mcpReq: ctx?.mcpReq ?? null,
-              task: () => handler(input, ctx),
+              fallbackContinuation,
+              task: () => handler(businessInput, ctx),
             });
           } catch (error) {
             const payload = browserErrorPayload(error);
