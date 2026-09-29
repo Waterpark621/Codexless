@@ -6,6 +6,13 @@ const { CLIENT_CAPABILITIES_META_KEY, createRequestStateCodec, inputRequired } =
 
 export const BROWSER_ELICITATION_INPUT_KEY = "browser_elicitation";
 export const BROWSER_FALLBACK_CONTINUATION_FIELD = "_browserContinuation";
+export const BROWSER_FALLBACK_CALLER_CONTRACT =
+  "The caller must read and apply the current codex.browser_confirmation_policy together with the user-authored task context " +
+  "before choosing accept, decline, or cancel, and may resume only when that policy/context permits the response. " +
+  "requestState is continuation state only, not approval evidence; a valid requestState does not authorize accept. " +
+  "Resume the same tool with the exact original business arguments and _browserContinuation: { requestState, response: { action } }. " +
+  "accept is supported only for a recognized Browser origin permission; origin and persistence come from the trusted pending request. " +
+  "decline adds no persistence metadata; cancel is non-decision cleanup and does not persist a denial.";
 const CODEX_MCP_ELICITATION_METHOD = "mcpServer/elicitation/request";
 const BROWSER_MCP_SERVER = "node_repl";
 const DEFAULT_CONTINUATION_TTL_MS = 55_000;
@@ -223,7 +230,9 @@ function projectFallbackElicitationResponse(value, inputRequest) {
         ["Use a client that can render the native Browser permission request, or decline/cancel this request."]
       );
     }
-    // The caller supplies only the decision. Persistence is derived from the trusted pending Browser request.
+    // The caller applies Browser confirmation policy + user-authored task context first.
+    // Verified continuation state binds the pending operation; it does not prove approval.
+    // Persistence is derived only from the trusted pending Browser request.
     return { action: "accept", content: { persist: "always" } };
   }
   return { action: value.action };
@@ -254,6 +263,7 @@ function fallbackPermissionResult({ pending, requestState }) {
     status: "permission_required",
     operationCompleted: false,
     permission,
+    callerObligation: BROWSER_FALLBACK_CALLER_CONTRACT,
     continuation: {
       requestState,
       expiresAt: new Date(pending.expiresAt).toISOString(),
