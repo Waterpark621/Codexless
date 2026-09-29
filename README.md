@@ -75,6 +75,10 @@ The public Browser surface supports both **Chrome and Edge**:
 
 Browser work uses the selected local browser profile and its existing site login state. Local file upload additionally requires the ChatGPT browser extension's **Allow access to file URLs** setting.
 
+Website access follows ChatGPT's **Agent permissions**. If default Browsing is **Requires approval**, first access to a new origin can require approval; **Always allow** removes those per-site browsing prompts while site-specific exceptions still apply. Codexless does not bypass or silently widen those permissions.
+
+The current public Browser adapter expects one connected extension backend per browser family. If multiple Chrome profiles expose extension backends at the same time, Codexless fails closed instead of guessing which signed-in profile to control; enable the extension only in the profile you intend to use until an upstream profile/backend selector is available.
+
 Codexless does **not** expose arbitrary JavaScript, raw selectors, arbitrary coordinates, unrestricted keyboard input, generic CDP, or automatic Computer Use fallback on the public surface.
 
 ### Live Excel / Document Control
