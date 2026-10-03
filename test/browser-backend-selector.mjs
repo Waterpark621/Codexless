@@ -22,7 +22,7 @@ function fixture(profiles = ["Personal", "Work"]) {
         locator() { return { filter() { return this; }, async evaluateAll() { return []; } }; },
         async waitForTimeout() {},
       },
-      dom_cua: { async keypress() { effects.push([info.id, "keypress"]); } },
+      dom_cua: { async keypress({ keys }) { effects.push([info.id, "keypress", Array.from(keys)]); } },
     };
     const browser = { browserId: info.id, user: { async openTabs() { return [row]; }, async claimTab(actual) { assert.equal(actual, row); effects.push([info.id, "claim"]); return tab; } },
       tabs: { async new() { effects.push([info.id, "new"]); return tab; }, async finalize() { effects.push([info.id, "release"]); } }, tab,
@@ -227,4 +227,104 @@ test("a selector cannot cross browser families or accept a wrongly resolved prov
   f.workbench.beforeDispatch = async (request) => { if (request.arguments.title === "List current Chrome tabs") f.browsers.get(f.inventory[0].id).browserId = "wrong-profile"; };
   await assert.rejects(() => f.executor.listTabs({ backendRef: b.backendRef }), fails("BROWSER_BACKEND_REF_STALE"));
   assert.equal(f.effects.length, 0);
+});
+
+function keypressFixture({ native = false, locator = true, press = true } = {}) {
+  const f = fixture(["Keypress"]);
+  const tab = f.browsers.get(f.inventory[0].id).tab;
+  if (!native) delete tab.dom_cua;
+  if (!locator) delete tab.playwright.locator;
+  else tab.playwright.locator = (selector) => ({
+    filter() { return this; }, async evaluateAll() { return []; },
+    ...(press ? { async press(key, options) { f.effects.push(["fallback", "keypress", selector, key, options]); } } : {}),
+  });
+  return f;
+}
+
+test("fixed keypress preflight permits native without a fallback locator", async () => {
+  const f = keypressFixture({ native: true, locator: false });
+  const tab = (await f.executor.listTabs()).tabs[0];
+  const receipt = await f.executor.keypressTab({ tabRef: tab.tabRef, key: "Tab" });
+  assert.equal(receipt.inputMethod, "dom-cua-focused-keypress");
+  assert.equal(receipt.dispatchStatus, "confirmed");
+  assert.deepEqual(f.effects.filter(e => e[1] === "keypress"), [[f.inventory[0].id, "keypress", ["Tab"]]]);
+});
+
+test("fixed keypress preflight prefers native when both paths are available", async () => {
+  const f = keypressFixture({ native: true });
+  const tab = (await f.executor.listTabs()).tabs[0];
+  await f.executor.keypressTab({ tabRef: tab.tabRef, key: "Escape" });
+  assert.equal(f.effects.filter(e => e[0] === "fallback").length, 0);
+  assert.deepEqual(f.effects.find(e => e[1] === "keypress")[2], ["Escape"]);
+});
+
+for (const key of ["Tab", "Escape", "Enter"]) {
+  test(`fixed keypress preflight permits ${key} through the maintained fallback`, async () => {
+    const f = keypressFixture();
+    const tab = (await f.executor.listTabs()).tabs[0];
+    const receipt = await f.executor.keypressTab({ tabRef: tab.tabRef, key });
+    assert.equal(receipt.inputMethod, "playwright-focused-keypress");
+    assert.equal(receipt.dispatchStatus, "confirmed");
+    assert.equal(receipt.readbackStatus, "ok");
+    assert.equal(f.effects.filter(e => e[1] === "release").length, 2, "dispatch and independent readback retain normal cleanup");
+    const calls = f.effects.filter(e => e[0] === "fallback");
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0][2], ":focus"); assert.equal(calls[0][3], key);
+    assert.equal(calls[0][4].timeoutMs, 3000);
+    if (key === "Enter") assert.match(receipt.note, /Enter may submit.*confirmation policy and task context/);
+  });
+}
+
+for (const shape of [{ locator: false }, { press: false }]) {
+  test(`fixed keypress preflight fails closed without ${shape.locator === false ? "locator" : "locator.press"}`, async () => {
+    const f = keypressFixture(shape);
+    const tab = (await f.executor.listTabs()).tabs[0];
+    await assert.rejects(() => f.executor.keypressTab({ tabRef: tab.tabRef, key: "Tab" }), error => {
+      assert.equal(error.code, "BROWSER_OPERATION_UNSUPPORTED");
+      assert.equal(error.diagnostic.preDispatch, true); return true;
+    });
+    assert.equal(f.effects.filter(e => e[1] === "keypress").length, 0);
+    assert.equal(f.effects.filter(e => e[1] === "release").length, 1);
+  });
+}
+
+test("fixed keypress preflight retains common method checks", async () => {
+  const f = keypressFixture();
+  const tab = (await f.executor.listTabs()).tabs[0];
+  delete f.browsers.get(f.inventory[0].id).tab.url;
+  await assert.rejects(() => f.executor.keypressTab({ tabRef: tab.tabRef, key: "Tab" }), fails("BROWSER_OPERATION_UNSUPPORTED"));
+  assert.equal(f.effects.filter(e => e[1] === "keypress").length, 0);
+  assert.equal(f.effects.filter(e => e[1] === "release").length, 1);
+});
+
+test("fixed keypress never retries a failed native dispatch via fallback", async () => {
+  const f = keypressFixture({ native: true });
+  const tab = (await f.executor.listTabs()).tabs[0];
+  f.browsers.get(f.inventory[0].id).tab.dom_cua.keypress = async () => { f.effects.push(["native-attempt"]); throw new Error("uncertain native input"); };
+  await assert.rejects(() => f.executor.keypressTab({ tabRef: tab.tabRef, key: "Tab" }), fails("BROWSER_KEYPRESS_RESULT_UNCERTAIN"));
+  assert.equal(f.effects.filter(e => e[0] === "native-attempt").length, 1);
+  assert.equal(f.effects.filter(e => e[0] === "fallback").length, 0);
+});
+
+test("fixed keypress rejects arbitrary keys before any Browser call", async () => {
+  const f = keypressFixture();
+  const tab = (await f.executor.listTabs()).tabs[0];
+  const before = f.calls.length;
+  for (const key of ["Space", "a", "Control+Enter", "", ["Tab"]]) {
+    await assert.rejects(() => f.executor.keypressTab({ tabRef: tab.tabRef, key }), fails("BROWSER_KEYPRESS_KEY_INVALID"));
+  }
+  assert.equal(f.calls.length, before); assert.equal(f.effects.length, 0);
+});
+
+test("fixed keypress public schema and Enter task confirmation contract stay strict", () => {
+  const registered = new Map();
+  registerBrowserPreviewTools({ registerTool(name, definition) { registered.set(name, definition); } }, {});
+  const definition = registered.get("codex.browser_keypress");
+  for (const key of ["Enter", "Tab", "Escape"]) assert.equal(definition.inputSchema.safeParse({ tabRef: "browser_tab_test", key }).success, true);
+  for (const extra of [{ key: "Space" }, { modifiers: ["Shift"] }, { repeats: 2 }, { selector: ":focus" }, { coordinates: [0, 0] }, { javascript: "alert(1)" }]) {
+    assert.equal(definition.inputSchema.safeParse({ tabRef: "browser_tab_test", key: "Enter", ...extra }).success, false);
+  }
+  assert.equal(definition.annotations.readOnlyHint, false);
+  assert.match(definition.description, /Enter can activate or submit/);
+  assert.match(definition.description, /confirmation_policy plus the current task context/);
 });

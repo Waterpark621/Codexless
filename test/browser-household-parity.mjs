@@ -848,7 +848,9 @@ function makeWorkbench({ chromeConnected = true, skillAvailable = true, nodeRepl
       if (title === "Dispatch fixed Chrome keypress") {
         assert.match(code, /typeof __twTab\.dom_cua\?\.keypress === "function"/);
         assert.match(code, /dom_cua\.keypress\(\{ keys: \[/);
-        assert.match(code, /playwright\.locator\(":focus"\)\.press\([^,]+, \{ timeoutMs: 3000 \}\)/);
+        assert.match(code, /__twFocusedLocator = __twTab\.playwright\.locator\(":focus"\)/);
+        assert.match(code, /__twRequireMethods\(__twFocusedLocator, \["press"\], true\)/);
+        assert.match(code, /__twFocusedLocator\.press\([^,]+, \{ timeoutMs: 3000 \}\)/);
         assert.match(code, /TOOLWIRE_BROWSER_ACTION_URL_CHANGED/);
         assert.match(code, /TOOLWIRE_BROWSER_KEYPRESS_RESULT_UNCERTAIN/);
         assert.match(code, /cleanupBrowserClaim\(__twBrowser, __twTab\)/);

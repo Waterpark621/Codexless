@@ -2129,13 +2129,20 @@ try {
   __twTab = await __twBrowser.user.claimTab(__twInfo);
   const __twBeforeUrl = (await __twTab.url()) ?? __twInfo.url ?? null;
   if (__twBeforeUrl !== ${expectedUrlLiteral}) throw new Error("TOOLWIRE_BROWSER_ACTION_URL_CHANGED");
+  const __twUseNativeKeypress = typeof __twTab.dom_cua?.keypress === "function";
+  let __twFocusedLocator = null;
+  if (!__twUseNativeKeypress) {
+    __twRequireMethods(__twTab, ["playwright.locator"], true);
+    __twFocusedLocator = __twTab.playwright.locator(":focus");
+    __twRequireMethods(__twFocusedLocator, ["press"], true);
+  }
   __twDispatchAttempted = true;
   let __twInputMethod = null;
-  if (typeof __twTab.dom_cua?.keypress === "function") {
+  if (__twUseNativeKeypress) {
     await __twTab.dom_cua.keypress({ keys: [${keyLiteral}] });
     __twInputMethod = "dom-cua-focused-keypress";
   } else {
-    await __twTab.playwright.locator(":focus").press(${keyLiteral}, { timeoutMs: 3000 });
+    await __twFocusedLocator.press(${keyLiteral}, { timeoutMs: 3000 });
     __twInputMethod = "playwright-focused-keypress";
   }
   __twKeypressReturned = true;
@@ -4933,7 +4940,10 @@ function __twRequireMethods(object, paths, preDispatch = false) {
       ...(body.includes("__twBrowser.user.claimTab(") ? ["user.claimTab"] : []),
       ...(body.includes("__twBrowser.tabs.new(") ? ["tabs.new"] : []),
     ];
-    const tabMethods = [...new Set([...body.matchAll(/__twTab\.((?:playwright\.|dom_cua\.|cua\.|capabilities\.)?\w+)\(/g)].map((match) => match[1]))];
+    // Fixed keypress validates its selected native OR focused-locator path in
+    // the operation body before setting the dispatch-attempted flag.
+    const tabMethods = [...new Set([...body.matchAll(/__twTab\.((?:playwright\.|dom_cua\.|cua\.|capabilities\.)?\w+)\(/g)].map((match) => match[1]))]
+      .filter((method) => mutationKind !== "keypress" || !["dom_cua.keypress", "playwright.locator"].includes(method));
     const capabilityCheckedBody = body
       .replace(/(const __twBrowser = await globalThis\.__toolwireBrowserAgent\.browsers\.get\([^\n]+\);)/g, (line) => line + "\n__twRequireMethods(__twBrowser, " + JSON.stringify(browserMethods) + ", true);")
       .replaceAll("__twTab = await __twBrowser.user.claimTab(__twInfo);", "__twTab = await __twBrowser.user.claimTab(__twInfo);\n  __twRequireMethods(__twTab, " + JSON.stringify(tabMethods) + ", " + (body.includes("let __twDispatchAttempted") ? "!__twDispatchAttempted" : "true") + ");")
