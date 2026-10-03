@@ -562,6 +562,7 @@ export class CodexBrowserExecutor {
   #runtimeCompatibility = null;
   #runtimeCompatibilityFailure = null;
   #runtimeCompatibilityResolver = null;
+  #onRuntimeReady = null;
   #sessionId = `toolwire-browser-${randomUUID()}`;
   #turnSeq = 0;
   #browserClientUrl = null;
@@ -581,6 +582,7 @@ export class CodexBrowserExecutor {
     authorityExecutor = null,
     runtimeCompatibility = null,
     runtimeCompatibilityResolver = null,
+    onRuntimeReady = null,
   }) {
     if (!workbench) throw new Error("CodexBrowserExecutor requires workbench");
     if (!defaultCwd) throw new Error("CodexBrowserExecutor requires defaultCwd");
@@ -602,6 +604,8 @@ export class CodexBrowserExecutor {
       this.#runtimeCompatibility = normalizeRuntimeCompatibilityBinding(runtimeCompatibility);
     }
     this.#runtimeCompatibilityResolver = runtimeCompatibilityResolver;
+    if (onRuntimeReady !== null && typeof onRuntimeReady !== "function") throw new Error("onRuntimeReady must be null or a function");
+    this.#onRuntimeReady = onRuntimeReady;
     if (this.#runtimeCompatibility && !this.#runtimeCompatibilityResolver) {
       throw new Error("runtimeCompatibilityResolver is required with a Browser runtime compatibility binding");
     }
@@ -4673,10 +4677,10 @@ nodeRepl.write(JSON.stringify(__twPayload));
   async #boundRuntimeCompatibilityStatus(cwd, { skillPath = null, pluginBuild = null } = {}) {
     if (!this.#runtimeCompatibility) return null;
     let current;
+    let discovered;
     try {
-      current = normalizeRuntimeCompatibilityBinding(
-        await this.#runtimeCompatibilityResolver({ cwd, chromeSkillPath: skillPath, chromePluginBuild: pluginBuild })
-      );
+      discovered = await this.#runtimeCompatibilityResolver({ cwd, chromeSkillPath: skillPath, chromePluginBuild: pluginBuild });
+      current = normalizeRuntimeCompatibilityBinding(discovered);
     } catch {
       current = null;
     }
@@ -4684,10 +4688,13 @@ nodeRepl.write(JSON.stringify(__twPayload));
       return {
         status: "unavailable",
         reason: "BROWSER_RUNTIME_COMPAT_CHANGED_RESTART_REQUIRED",
+        ...(discovered?.changedComponents ? { changedComponents: discovered.changedComponents.filter((value) => ["snapshot", "browser", "chrome", "node", "codex"].includes(value)) } : {}),
         chromeSkill: "changed",
         nodeRepl: "unknown",
         nextActions: [
-          "Restart the main Codexless household runtime so Browser compatibility, isolated node_repl overrides, and the canonical browser client/service fingerprint are rebound together.",
+          this.#runtimeCompatibility.snapshot
+              ? "Restart the main Codexless household runtime to bind a complete verified Browser dependency snapshot; the active snapshot failed integrity verification."
+              : "Restart the main Codexless household runtime so Browser compatibility, isolated node_repl overrides, and the canonical browser client/service fingerprint are rebound together.",
           "Do not hot-switch the Browser child to the newly discovered plugin inside the current main runtime.",
         ],
       };
@@ -4697,6 +4704,12 @@ nodeRepl.write(JSON.stringify(__twPayload));
   }
 
   async #dependencyStatus(cwd) {
+    if (this.#runtimeCompatibility?.snapshot) {
+      const changed = await this.#boundRuntimeCompatibilityStatus(cwd);
+      if (changed) return changed;
+      const nodeStatus = await this.#nodeReplDependencyStatus();
+      return nodeStatus ?? { status: "ok", skillPathResolved: Boolean(this.#runtimeCompatibility.chromeSkillPath), chromePluginResolved: true, browserClientResolved: true };
+    }
     let skills;
     let chromePlugin = null;
     try {
@@ -4737,6 +4750,27 @@ nodeRepl.write(JSON.stringify(__twPayload));
     const compatibilityStatus = await this.#boundRuntimeCompatibilityStatus(cwd, { skillPath, pluginBuild });
     if (compatibilityStatus) return compatibilityStatus;
 
+    const nodeStatus = await this.#nodeReplDependencyStatus();
+    if (nodeStatus) return nodeStatus;
+
+    if (!this.#runtimeCompatibility) {
+      if (!skillPath) {
+        return {
+          status: "unavailable",
+          reason: "BROWSER_RUNTIME_COMPATIBILITY_UNAVAILABLE",
+          chromeSkill: "not_required",
+          nodeRepl: "ok",
+          nextActions: [
+            "Use a Codexless runtime that binds the current skill-less Chrome plugin build to its browser client/service pair before Browser dispatch.",
+          ],
+        };
+      }
+      this.#browserClientUrl = this.#browserClientUrl ?? deriveBrowserClientUrl(skillPath);
+    }
+    return { status: "ok", skillPathResolved: Boolean(skillPath), chromePluginResolved: Boolean(pluginBuild), browserClientResolved: true };
+  }
+
+  async #nodeReplDependencyStatus() {
     try {
       const mcp = await this.#workbench.catalog({ kind: "mcp", cwd: this.#runtimeCwd, query: NODE_REPL_TOOL });
       this.#syncWorkbenchGeneration();
@@ -4763,28 +4797,15 @@ nodeRepl.write(JSON.stringify(__twPayload));
       ));
     }
 
-    if (!this.#runtimeCompatibility) {
-      if (!skillPath) {
-        return {
-          status: "unavailable",
-          reason: "BROWSER_RUNTIME_COMPATIBILITY_UNAVAILABLE",
-          chromeSkill: "not_required",
-          nodeRepl: "ok",
-          nextActions: [
-            "Use a Codexless runtime that binds the current skill-less Chrome plugin build to its browser client/service pair before Browser dispatch.",
-          ],
-        };
-      }
-      this.#browserClientUrl = this.#browserClientUrl ?? deriveBrowserClientUrl(skillPath);
-    }
-    return { status: "ok", skillPathResolved: Boolean(skillPath), chromePluginResolved: Boolean(pluginBuild), browserClientResolved: true };
+    return null;
   }
 
   async #requireReady(cwd, family = "chrome", backendRef, operation = "listTabs") {
     const browserFamily = normalizeBrowserFamily(family);
     const dependency = await this.#dependencyStatus(cwd);
     if (dependency.status !== "ok") {
-      throw new BrowserPreviewError(dependency.reason ?? "BROWSER_UNAVAILABLE", "Browser dependencies are unavailable", dependency.nextActions ?? []);
+      throw new BrowserPreviewError(dependency.reason ?? "BROWSER_UNAVAILABLE", "Browser dependencies are unavailable", dependency.nextActions ?? [],
+        dependency.changedComponents ? { changedComponents: dependency.changedComponents } : null);
     }
     const backends = await this.#listBackends(cwd);
     if (backendRef !== undefined) {
@@ -4850,6 +4871,7 @@ nodeRepl.write(JSON.stringify(__twInventory));
       next.set(backend.backendRef, backend);
     }
     this.#backends = next;
+    await this.#onRuntimeReady?.();
     return [...next.values()];
   }
 
@@ -5069,6 +5091,7 @@ function normalizeRuntimeCompatibilityBinding(value) {
     browserClientPath: path.resolve(value.browserClientPath),
     browserServicePath: path.resolve(value.browserServicePath),
     browserClientSha256: value.browserClientSha256.toLowerCase(),
+    ...(value.snapshot ? { snapshot: structuredClone(value.snapshot) } : {}),
   };
 }
 
@@ -5111,7 +5134,9 @@ function runtimeCompatibilityPathMatches(left, right) {
 }
 
 function runtimeCompatibilityBindingsMatch(bound, current) {
-  return bound.build === current.build
+  return (bound.snapshot?.id ?? null) === (current.snapshot?.id ?? null)
+    && (bound.snapshot?.manifestSha256 ?? null) === (current.snapshot?.manifestSha256 ?? null)
+    && bound.build === current.build
     && bound.browserClientSha256 === current.browserClientSha256
     && runtimeCompatibilityPathMatches(bound.chromePluginRoot, current.chromePluginRoot)
     && runtimeCompatibilityPathMatches(bound.browserClientPath, current.browserClientPath)
