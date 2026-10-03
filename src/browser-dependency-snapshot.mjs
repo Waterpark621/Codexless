@@ -7,6 +7,7 @@ import { defaultCodexlessStateRoot } from "./runtime-routing-policy.mjs";
 const SCHEMA = 1;
 const MAX_FILES = 12000;
 const MAX_BYTES = 2 * 1024 ** 3;
+const SNAPSHOT_HASH_WORKERS = 8;
 const ROLES = ["browser", "chrome", "codex", "node"];
 const canonical = (value) => JSON.stringify(value, (_key, entry) => entry && typeof entry === "object" && !Array.isArray(entry)
   ? Object.fromEntries(Object.keys(entry).sort().map((key) => [key, entry[key]])) : entry);
@@ -42,21 +43,42 @@ async function directory(dir, { create = false } = {}) {
   return resolved;
 }
 async function inventory(roots) {
-  const files = [];
+  const candidates = [];
   let bytes = 0;
   async function visit(role, root, dir) {
     for (const item of (await readdir(dir, { withFileTypes: true })).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)) {
       const file = path.join(dir, item.name);
-      const stat = await lstat(file);
-      if (stat.isSymbolicLink()) throw failure(role, "browser_snapshot_path_untrusted");
-      if (stat.isDirectory()) { await visit(role, root, file); continue; }
-      if (!stat.isFile() || !within(root, await realpath(file))) throw failure(role, "browser_snapshot_path_untrusted");
-      bytes += stat.size;
-      if (files.length >= MAX_FILES || bytes > MAX_BYTES) throw failure(role, "browser_snapshot_size_limit");
-      files.push({ path: `${role}/${path.relative(root, file).split(path.sep).join("/")}`, bytes: stat.size, sha256: await fileHash(file) });
+      if (item.isDirectory()) {
+        const stat = await lstat(file);
+        if (stat.isSymbolicLink() || !stat.isDirectory()) throw failure(role, "browser_snapshot_path_untrusted");
+        await visit(role, root, file);
+      } else {
+        if (candidates.length >= MAX_FILES) throw failure(role, "browser_snapshot_size_limit");
+        candidates.push({ role, root, file });
+      }
     }
   }
   for (const role of ROLES) { await directory(roots[role]); await visit(role, roots[role], roots[role]); }
+  // Preserve the original role/tree order, regardless of read completion order.
+  // Every pass still checks every file's current content; no stat/mtime cache.
+  const files = new Array(candidates.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(SNAPSHOT_HASH_WORKERS, candidates.length) }, async () => {
+    for (;;) {
+      const index = next++;
+      if (index >= candidates.length) break;
+      const { role, root, file } = candidates[index];
+      const stat = await lstat(file);
+      if (stat.isSymbolicLink() || !stat.isFile() || !within(root, await realpath(file))) throw failure(role, "browser_snapshot_path_untrusted");
+      bytes += stat.size;
+      if (bytes > MAX_BYTES) throw failure(role, "browser_snapshot_size_limit");
+      files[index] = { path: role + "/" + path.relative(root, file).split(path.sep).join("/"), bytes: stat.size, sha256: await fileHash(file) };
+    }
+  });
+  // Do not return an integrity failure while another worker is still reading.
+  const results = await Promise.allSettled(workers);
+  const failed = results.find((result) => result.status === "rejected");
+  if (failed) throw failed.reason;
   return files;
 }
 async function locked(store, action) {

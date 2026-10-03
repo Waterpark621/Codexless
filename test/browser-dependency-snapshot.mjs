@@ -176,3 +176,95 @@ test("observed integrity failure remains latched after byte restoration and chil
   await assert.rejects(()=>live.executor.listTabs({}),error=>error.code==="BROWSER_RUNTIME_COMPAT_CHANGED_RESTART_REQUIRED");assert.equal(live.dispatches,0);
   assert.equal((await browser(x).executor.status()).status,"ok","a fresh household can bind the verified restored generation");
 });
+
+async function instrumentVerifier(f, binding, mode) {
+  const module = pathToFileURL(path.resolve(import.meta.dirname, "../src/browser-dependency-snapshot.mjs")).href;
+  const script = path.join(f.base, `instrument-${mode}.mjs`);
+  await writeFile(script, `
+import fs from "node:fs";
+import fsp from "node:fs/promises";
+import {syncBuiltinESMExports} from "node:module";
+import path from "node:path";
+const binding=${JSON.stringify(binding)}, mode=${JSON.stringify(mode)};
+let active=0,maxActive=0,streams=0;
+const nativeStream=fs.createReadStream;
+fs.createReadStream=function(...args){
+  const stream=nativeStream.apply(this,args);streams++;active++;maxActive=Math.max(maxActive,active);
+  stream.once("close",()=>active--);return stream;
+};
+let activePaths=0,maxActivePaths=0;
+const nativeRealpath=fsp.realpath;
+if(mode==="drain") fsp.realpath=async function(file,...args){
+  if(!path.basename(String(file)).startsWith("worker-")) return nativeRealpath(file,...args);
+  activePaths++;maxActivePaths=Math.max(maxActivePaths,activePaths);
+  try{
+    const fail=path.basename(String(file))==="worker-00-fail.bin";
+    await new Promise(resolve=>setTimeout(resolve,fail?5:40));
+    if(fail)throw Error("fixture injected read failure");
+    return await nativeRealpath(file,...args);
+  }finally{activePaths--;}
+};
+const nativeReaddir=fsp.readdir;
+if(mode==="file-cap") fsp.readdir=async function(dir,...args){
+  if(String(dir)===path.join(binding.snapshot.root,"browser"))return Array.from({length:12001},(_,i)=>({name:"cap-"+i,isDirectory:()=>false}));
+  return nativeReaddir(dir,...args);
+};
+const nativeLstat=fsp.lstat;
+if(mode==="byte-cap") fsp.lstat=async function(file,...args){
+  const info=await nativeLstat(file,...args);
+  if(String(file)===path.join(binding.snapshot.root,"browser/docs/api.json"))Object.defineProperty(info,"size",{value:2*1024**3+1});
+  return info;
+};
+syncBuiltinESMExports();
+const {verifyBrowserDependencySnapshot}=await import(${JSON.stringify(module)});
+const result=await verifyBrowserDependencySnapshot(binding);
+console.log(JSON.stringify({status:result.status,reason:result.reason,changedComponents:result.changedComponents,active,maxActive,streams,activePaths,maxActivePaths}));
+`);
+  return new Promise((resolve,reject)=>{
+    const child=spawn(process.execPath,[script],{windowsHide:true});let output="",errors="";
+    child.stdout.on("data",data=>output+=data);child.stderr.on("data",data=>errors+=data);
+    child.on("error",reject);child.on("exit",code=>code===0?resolve(JSON.parse(output)):reject(Error(errors)));
+  });
+}
+test("parallel inventory preserves legacy depth-first manifest order and deterministic snapshot identity",async t=>{
+  const f=await fixture(t),a=await f.source("ordered");
+  for(const relative of ["a-second.bin","a/first.bin","0.bin"]){
+    const file=path.join(a.roots.browser,"ordering",relative);await mkdir(path.dirname(file),{recursive:true});await writeFile(file,relative);
+  }
+  for(let n=0;n<48;n++)await writeFile(path.join(a.roots.browser,"ordering",`worker-${String(n).padStart(2,"0")}.bin`),Buffer.alloc(n*1024,n));
+  const x=await f.bind(a),manifest=JSON.parse(await readFile(path.join(x.compatibility.snapshot.root,"manifest.json"),"utf8"));
+  const entries=manifest.identity.files.filter(entry=>entry.path.startsWith("browser/ordering/")).map(entry=>entry.path);
+  assert.deepEqual(entries.slice(0,3),["browser/ordering/0.bin","browser/ordering/a/first.bin","browser/ordering/a-second.bin"]);
+  for(let n=0;n<5;n++)assert.equal((await verifyBrowserDependencySnapshot(x.compatibility)).status,"ok");
+  const again=await f.bind(a);assert.equal(again.reused,true);assert.equal(again.compatibility.snapshot.id,x.compatibility.snapshot.id);
+  const metrics=await instrumentVerifier(f,x.compatibility,"bounded");
+  assert.equal(metrics.status,"ok");assert.equal(metrics.streams,manifest.identity.files.length+1);
+  assert.ok(metrics.maxActive>1,"independent file hashes should overlap");assert.ok(metrics.maxActive<=8,"open hash streams must be bounded");
+  assert.equal(metrics.active,0,"no hashing may remain active when verification returns");
+});
+test("failed parallel verification drains all outstanding worker reads before returning",async t=>{
+  const f=await fixture(t),a=await f.source("drain"),dir=path.join(a.roots.browser,"workers");await mkdir(dir);
+  for(let n=0;n<24;n++)await writeFile(path.join(dir,`worker-${String(n).padStart(2,"0")}${n===0?"-fail":""}.bin`),Buffer.alloc(512,n));
+  const x=await f.bind(a),metrics=await instrumentVerifier(f,x.compatibility,"drain");
+  assert.equal(metrics.status,"unavailable");assert.ok(metrics.maxActivePaths>1);assert.ok(metrics.maxActivePaths<=8);
+  assert.equal(metrics.activePaths,0);assert.equal(metrics.active,0);
+  assert.equal((await verifyBrowserDependencySnapshot(x.compatibility)).status,"ok","fixture read failure must not mutate the bound snapshot");
+});
+test("extra active files fail closed and every later verification checks the tree again",async t=>{
+  const f=await fixture(t),x=await f.bind(await f.source("extra")),file=path.join(x.compatibility.snapshot.root,"node/extra.mjs");
+  assert.equal((await verifyBrowserDependencySnapshot(x.compatibility)).status,"ok");await writeFile(file,"export const extra=true;");
+  const changed=await verifyBrowserDependencySnapshot(x.compatibility);assert.equal(changed.status,"unavailable");assert.deepEqual(changed.changedComponents,["node"]);
+  await rm(file);assert.equal((await verifyBrowserDependencySnapshot(x.compatibility)).status,"ok");
+});
+test("active snapshot junction escape is refused without reading or changing its target",async t=>{
+  const f=await fixture(t),x=await f.bind(await f.source("junction")),outside=path.join(f.base,"outside-active");await mkdir(outside);
+  const marker=path.join(outside,"private.txt");await writeFile(marker,"must remain untouched");
+  const junction=path.join(x.compatibility.snapshot.root,"chrome/escape");await symlink(outside,junction,process.platform==="win32"?"junction":"dir");
+  assert.equal((await verifyBrowserDependencySnapshot(x.compatibility)).status,"unavailable");
+  await rm(junction);assert.equal(await readFile(marker,"utf8"),"must remain untouched");assert.equal((await verifyBrowserDependencySnapshot(x.compatibility)).status,"ok");
+});
+for(const mode of ["file-cap","byte-cap"])test(`parallel verification preserves the ${mode} before unbounded hashing`,async t=>{
+  const f=await fixture(t),x=await f.bind(await f.source(mode)),metrics=await instrumentVerifier(f,x.compatibility,mode);
+  assert.equal(metrics.status,"unavailable");assert.equal(metrics.active,0);assert.ok(metrics.maxActive<=8);
+  assert.equal((await verifyBrowserDependencySnapshot(x.compatibility)).status,"ok");
+});

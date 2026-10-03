@@ -17,7 +17,7 @@
       }
     }
   },
-  "buildId": "6cd53c9629eca21668b2ac077a1b4d2636520f4d0791894f005398edc99a4ce9",
+  "buildId": "7efe9dc916c2ef816fa1de2c031a1b2d9c6e8a57150b52bec1964e587cf95ee5",
   "files": [
     { "path": "EXPORT_SYNC.md", "sha256": "2016ca37f280451a76cdb95f7223e0aa60f4a4743a41df0e11d6b4157231a839" },
     { "path": "LICENSE", "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4" },
@@ -68,7 +68,7 @@
     { "path": "src/bootstrap-archive.mjs", "sha256": "8ad353e63399126b4a9c766194ee360a767c7d9e2158d19f024b96e64d5e5f3f" },
     { "path": "src/bootstrap-persistence.mjs", "sha256": "5641812542306bfb48d0503721fc9d586ae987fcc23c4c4e4032d7543a2d68a5" },
     { "path": "src/bootstrap-updater.mjs", "sha256": "8fc1d19dfebcb956aa8b9887190830efc13141253ae407cb14b8629ffc428c3f" },
-    { "path": "src/browser-dependency-snapshot.mjs", "sha256": "ca1601921955b91696406ea3c4d61d9a3d5d9d45ff602920416e2c000e015473" },
+    { "path": "src/browser-dependency-snapshot.mjs", "sha256": "8c52ffe61207a6028e05fc093d9f7f7daccab832f86c0f8508bc16e283a7ba9f" },
     { "path": "src/browser-element-ref.mjs", "sha256": "6d33904dd35acc0b483b79cbf992405c2f7db660e9dced8d81498971c2353b4a" },
     { "path": "src/browser-elicitation-bridge.mjs", "sha256": "2cc060b019fe38b9a990876992365aa0c32e94ac4b190c98bd61b5da04b4fee2" },
     { "path": "src/browser-model-route-probe.mjs", "sha256": "2b0cc93ad064543b09a276cb2be8d031b926cc62c6cfe11bd916a8e2a592f07b" },
