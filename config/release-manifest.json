@@ -17,7 +17,7 @@
       }
     }
   },
-  "buildId": "1cb359716e0f3a7b0b10f7ee267bc4bdcaaf8e5762960120898cd50b1aac748e",
+  "buildId": "6cd53c9629eca21668b2ac077a1b4d2636520f4d0791894f005398edc99a4ce9",
   "files": [
     { "path": "EXPORT_SYNC.md", "sha256": "2016ca37f280451a76cdb95f7223e0aa60f4a4743a41df0e11d6b4157231a839" },
     { "path": "LICENSE", "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4" },
@@ -78,7 +78,7 @@
     { "path": "src/codex-app-server-client.mjs", "sha256": "641ec966f3a9e18857e0b0551de0298bc120ae18f30a73d2ec50d3d9cfc5d84c" },
     { "path": "src/codex-authority-executor.mjs", "sha256": "d73d839119982a0afb8bdcc0e23c656b40112eb396f8af78caee900a645f00e0" },
     { "path": "src/codex-bin.mjs", "sha256": "979c26ca4cd52c40a43a93bdc4c30e962b8eb9c374dbee7f1bdff0b67a24094e" },
-    { "path": "src/codex-browser-executor.mjs", "sha256": "ba93940a5c59b45604f1e3303adb041ec5bccc29a5d6d3e656603d6fbd485854" },
+    { "path": "src/codex-browser-executor.mjs", "sha256": "52865f10193e5f91d9f14fae49aa6b0dcb2fcab12486f364338fc86a98b5268d" },
     { "path": "src/codex-call-profile.mjs", "sha256": "87b136e5cb0e3af7e90a9d7c808ad098a1c5649f94d2490e1c07d3897d180906" },
     { "path": "src/codex-computer-use-executor.mjs", "sha256": "caf6acbae38396f46a47f13abc282117c5f5f296bece15aff56d009120256489" },
     { "path": "src/codex-model-catalog.mjs", "sha256": "17a6aaad0f05b7c7260616c40beb75d07eade1981f5396d8db660490a085c7de" },
