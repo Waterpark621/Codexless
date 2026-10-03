@@ -56,7 +56,7 @@ function browser(binding) {
     async mcpCall({arguments:args}) {dispatches++;const data=args.code.includes("const __twInventory = []")?[backend]:[];return {isError:false,text:JSON.stringify(data)};}};
   const executor=new CodexBrowserExecutor({workbench,defaultCwd:os.tmpdir(),runtimeCompatibility:binding.compatibility,
     runtimeCompatibilityResolver:()=>verifyBrowserDependencySnapshot(binding.compatibility)});
-  return {executor,get dispatches(){return dispatches;}};
+  return {executor,workbench,get dispatches(){return dispatches;}};
 }
 test("source A binds a coherent content-addressed snapshot, including node modules and complete CLI helpers",async t=>{
   const f=await fixture(t),a=await f.source("A"),x=await f.bind(a);
@@ -166,4 +166,13 @@ test("bootstrap promotion never overwrites unknown rollback ownership",async t=>
   const history=path.join(f.store,"history.json");await writeFile(history,"{}");
   await assert.rejects(()=>x.markReady(),error=>error.code==="browser_snapshot_cleanup_ownership_unknown");
   assert.equal(await readFile(history,"utf8"),"{}");
+});
+test("observed integrity failure remains latched after byte restoration and child restart",async t=>{
+  const f=await fixture(t),x=await f.bind(await f.source("A")),live=browser(x);
+  const file=x.compatibility.browserServicePath,bytes=await readFile(file);
+  await writeFile(file,"changed implementation");assert.equal((await live.executor.status()).reason,"BROWSER_RUNTIME_COMPAT_CHANGED_RESTART_REQUIRED");
+  await writeFile(file,bytes);live.workbench.generation++;
+  assert.equal((await live.executor.status()).reason,"BROWSER_RUNTIME_COMPAT_CHANGED_RESTART_REQUIRED");
+  await assert.rejects(()=>live.executor.listTabs({}),error=>error.code==="BROWSER_RUNTIME_COMPAT_CHANGED_RESTART_REQUIRED");assert.equal(live.dispatches,0);
+  assert.equal((await browser(x).executor.status()).status,"ok","a fresh household can bind the verified restored generation");
 });

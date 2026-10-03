@@ -563,6 +563,7 @@ export class CodexBrowserExecutor {
   #runtimeCompatibilityFailure = null;
   #runtimeCompatibilityResolver = null;
   #onRuntimeReady = null;
+  #snapshotIntegrityFailure = null;
   #sessionId = `toolwire-browser-${randomUUID()}`;
   #turnSeq = 0;
   #browserClientUrl = null;
@@ -4676,6 +4677,7 @@ nodeRepl.write(JSON.stringify(__twPayload));
 
   async #boundRuntimeCompatibilityStatus(cwd, { skillPath = null, pluginBuild = null } = {}) {
     if (!this.#runtimeCompatibility) return null;
+    if (this.#snapshotIntegrityFailure) return structuredClone(this.#snapshotIntegrityFailure);
     let current;
     let discovered;
     try {
@@ -4685,7 +4687,7 @@ nodeRepl.write(JSON.stringify(__twPayload));
       current = null;
     }
     if (!current || !runtimeCompatibilityBindingsMatch(this.#runtimeCompatibility, current)) {
-      return {
+      const failure = {
         status: "unavailable",
         reason: "BROWSER_RUNTIME_COMPAT_CHANGED_RESTART_REQUIRED",
         ...(discovered?.changedComponents ? { changedComponents: discovered.changedComponents.filter((value) => ["snapshot", "browser", "chrome", "node", "codex"].includes(value)) } : {}),
@@ -4698,6 +4700,8 @@ nodeRepl.write(JSON.stringify(__twPayload));
           "Do not hot-switch the Browser child to the newly discovered plugin inside the current main runtime.",
         ],
       };
+      if (this.#runtimeCompatibility.snapshot) this.#snapshotIntegrityFailure = structuredClone(failure);
+      return failure;
     }
     this.#browserClientUrl = pathToFileURL(this.#runtimeCompatibility.browserClientPath).href;
     return null;
