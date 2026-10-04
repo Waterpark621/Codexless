@@ -71,7 +71,7 @@ Approval of a Codex Agent task does not grant a new local permission universe. L
 
 ## Browser
 
-The public Browser surface is intentionally bounded around user-intent actions rather than exposing Browser internals. It includes Reader, current-viewport screenshot, dynamic stock confirmation-policy read, prepared exact single-tab close, prepared open/navigate/click/fill/download/upload, bounded scroll, and only the fixed `Enter` / `Tab` / `Escape` keypresses.
+The public Browser surface is intentionally bounded around user-intent actions rather than exposing Browser internals. It includes Reader, current-viewport screenshot, dynamic stock confirmation-policy read, prepared exact single-tab close, prepared open/navigate/click/fill/download/upload, bounded scroll, and only the fixed `Enter` / `Tab` / `Escape` / `Space` keypresses.
 
 Prepared mutation refs bind an exact action and current Browser state but are **not permission tokens**. The caller applies the current stock Codex Browser confirmation policy together with the bounded user task. Once a mutation may have been dispatched, uncertainty is fail-visible and must not trigger a blind replay.
 

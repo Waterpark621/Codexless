@@ -14,7 +14,7 @@ const BROWSER_ACTION_APPROVAL_TTL_MS = 5 * 60_000;
 const MAX_BROWSER_BULK_CLOSE_TABS = 100;
 const BROWSER_POST_ACTION_MAX_CHARS = 20_000;
 const BROWSER_FILL_ROLES = new Set(["textbox", "searchbox"]);
-const BROWSER_FIXED_KEYS = new Set(["Enter", "Tab", "Escape"]);
+const BROWSER_FIXED_KEYS = new Set(["Enter", "Tab", "Escape", "Space"]);
 const MAX_BROWSER_UPLOAD_BYTES = 100 * 1024 * 1024;
 const MAX_SCREENSHOT_BYTES = 5_000_000;
 const MAX_WEBMCP_DESCRIPTOR_BYTES = 256_000;
@@ -2091,7 +2091,7 @@ nodeRepl.write(JSON.stringify(__twPayload));
       throw new BrowserPreviewError("BROWSER_TAB_REF_REQUIRED", "tabRef is required; call codex.browser_tabs first");
     }
     if (!BROWSER_FIXED_KEYS.has(key)) {
-      throw new BrowserPreviewError("BROWSER_KEYPRESS_KEY_INVALID", "key must be exactly Enter, Tab, or Escape");
+      throw new BrowserPreviewError("BROWSER_KEYPRESS_KEY_INVALID", "key must be exactly Enter, Tab, Escape, or Space");
     }
     if (!Number.isInteger(maxChars) || maxChars < 1_000 || maxChars > MAX_SNAPSHOT_CHARS) {
       throw new BrowserPreviewError(
@@ -2227,8 +2227,8 @@ nodeRepl.write(JSON.stringify(__twPayload));
       snapshotChars: Number.isInteger(readback?.snapshotChars) ? readback.snapshotChars : snapshot.length,
       snapshotTruncated: readback?.snapshotTruncated === true,
       note: readback
-        ? "Exactly one fixed Enter/Tab/Escape keypress returned successfully at the page's currently focused element through the available official Browser keypress primitive, then the Browser runtime performed a separate read-only DOM readback. inputMethod reports whether DOM CUA or the Playwright :focus compatibility path was used. Callers cannot supply arbitrary keys, modifiers, text, selectors, coordinates, repeats, or JavaScript. Enter may submit or activate the focused control, so apply the current Codex Browser confirmation policy and task context before calling when that representational/external side effect is possible. A later readback failure cannot turn a confirmed keypress uncertain and the Browser runtime never repeats it automatically."
-        : "Exactly one fixed Enter/Tab/Escape keypress returned successfully at the page's currently focused element through the available official Browser keypress primitive. inputMethod reports whether DOM CUA or the Playwright :focus compatibility path was used. The separate read-only DOM readback failed, but the Browser runtime does not mark the confirmed keypress uncertain and does not repeat it automatically; re-read the tab if page content is still needed.",
+        ? "Exactly one fixed Enter/Tab/Escape/Space keypress returned successfully at the page's currently focused element through the available official Browser keypress primitive, then the Browser runtime performed a separate read-only DOM readback. inputMethod reports whether DOM CUA or the Playwright :focus compatibility path was used. Callers cannot supply arbitrary keys, modifiers, text, selectors, coordinates, repeats, or JavaScript. Enter and Space may submit or activate the focused control, so apply the current Codex Browser confirmation policy and task context before calling when that representational/external side effect is possible. A later readback failure cannot turn a confirmed keypress uncertain and the Browser runtime never repeats it automatically."
+        : "Exactly one fixed Enter/Tab/Escape/Space keypress returned successfully at the page's currently focused element through the available official Browser keypress primitive. inputMethod reports whether DOM CUA or the Playwright :focus compatibility path was used. The separate read-only DOM readback failed, but the Browser runtime does not mark the confirmed keypress uncertain and does not repeat it automatically; re-read the tab if page content is still needed.",
     };
   }
 
@@ -6076,7 +6076,7 @@ function browserMutationResultUncertain(kind, message) {
           : normalizedKind === "scroll"
           ? "Re-read current tab/page state first, then scroll again only if more loaded content is still needed."
           : normalizedKind === "keypress"
-            ? "Re-read current tab/page state first. Press the key again only if the intended effect is clearly still needed; never blindly repeat Enter/Tab/Escape."
+            ? "Re-read current tab/page state first. Press the key again only if the intended effect is clearly still needed; never blindly repeat Enter/Tab/Escape/Space."
             : normalizedKind === "download"
               ? "Do not start another download automatically. Inspect the browser's download location or current task state first because the file may already have been created."
               : normalizedKind === "upload"
@@ -6430,7 +6430,7 @@ function classifyBrowserError(error) {
     return new BrowserPreviewError(
       "BROWSER_KEYPRESS_RESULT_UNCERTAIN",
       message.replace(/^.*TOOLWIRE_BROWSER_KEYPRESS_RESULT_UNCERTAIN:/, "Browser keypress result is uncertain: "),
-      ["Do not retry Enter/Tab/Escape automatically. Re-read the current tab/page state first, then press again only if the intended effect is clearly still needed."]
+      ["Do not retry Enter/Tab/Escape/Space automatically. Re-read the current tab/page state first, then press again only if the intended effect is clearly still needed."]
     );
   }
   if (/TOOLWIRE_BROWSER_UPLOAD_RESULT_UNCERTAIN/i.test(message)) {

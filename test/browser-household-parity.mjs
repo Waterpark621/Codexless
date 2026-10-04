@@ -856,7 +856,7 @@ function makeWorkbench({ chromeConnected = true, skillAvailable = true, nodeRepl
         assert.match(code, /cleanupBrowserClaim\(__twBrowser, __twTab\)/);
         assert.doesNotMatch(code, /__twTab\.cua\.keypress\(/, "keypress compatibility must not widen to coordinate CUA");
         assert.doesNotMatch(code, /domSnapshot\(/, "keypress dispatch receipt must not depend on DOM readback");
-        const keyMatch = code.match(/key: ("(?:Enter|Tab|Escape)")/);
+        const keyMatch = code.match(/key: ("(?:Enter|Tab|Escape|Space)")/);
         assert.ok(keyMatch, "keypress body must bind one fixed supported key");
         const key = JSON.parse(keyMatch[1]);
         state.keypresses.push(key);
@@ -2124,10 +2124,10 @@ test("Browser navigation and placeholder-fill schemas stay narrow", () => {
   assert.equal(keypress.inputSchema.safeParse({ tabRef: "browser_tab_test", key: "Enter" }).success, true);
   assert.equal(keypress.inputSchema.safeParse({ tabRef: "browser_tab_test", key: "Tab" }).success, true);
   assert.equal(keypress.inputSchema.safeParse({ tabRef: "browser_tab_test", key: "Escape" }).success, true);
-  assert.equal(keypress.inputSchema.safeParse({ tabRef: "browser_tab_test", key: "Space" }).success, false);
+  assert.equal(keypress.inputSchema.safeParse({ tabRef: "browser_tab_test", key: "Space" }).success, true);
   assert.equal(keypress.inputSchema.safeParse({ tabRef: "browser_tab_test", key: "Enter", modifiers: ["Shift"] }).success, false);
   assert.equal(keypress.inputSchema.safeParse({ tabRef: "browser_tab_test", key: "Enter", text: "hello" }).success, false);
-  assert.match(keypress.description ?? "", /Enter, Tab, or Escape/i);
+  assert.match(keypress.description ?? "", /Enter, Tab, Escape, or Space/i);
   assert.match(keypress.description ?? "", /cannot supply arbitrary key names, text, modifiers, repeats, selectors, coordinates, node ids, or JavaScript/i);
   assert.equal(prepareNavigate.inputSchema.safeParse({ tabRef: "browser_tab_test", url: "https://example.test/path" }).success, true);
   assert.equal(prepareNavigate.inputSchema.safeParse({ tabRef: "browser_tab_test", url: "https://example.test", selector: "body" }).success, false);
@@ -3201,11 +3201,11 @@ test("Browser confirmed scroll stays successful when only post-scroll readback f
   assert.equal(uncertainWorkbench.state.scrolls, 1);
 });
 
-test("Browser fixed keypress prefers DOM CUA when available and exposes only Enter/Tab/Escape at current focus", async () => {
+test("Browser fixed keypress prefers DOM CUA when available and exposes only Enter/Tab/Escape/Space at current focus", async () => {
   const workbench = makeWorkbench();
   const browser = new CodexBrowserExecutor({ workbench, defaultCwd: "C:\\workspace" });
   const listed = await browser.listTabs({});
-  for (const key of ["Tab", "Escape", "Enter"]) {
+  for (const key of ["Tab", "Escape", "Enter", "Space"]) {
     const pressed = await browser.keypressTab({ tabRef: listed.tabs[0].tabRef, key, maxChars: 1000 });
     assert.equal(pressed.status, "pressed");
     assert.equal(pressed.key, key);
@@ -3218,12 +3218,12 @@ test("Browser fixed keypress prefers DOM CUA when available and exposes only Ent
     assert.match(pressed.note, /inputMethod reports whether DOM CUA or the Playwright :focus compatibility path was used/i);
     assert.match(pressed.note, /arbitrary keys, modifiers, text, selectors, coordinates, repeats, or JavaScript/i);
   }
-  assert.deepEqual(workbench.state.keypresses, ["Tab", "Escape", "Enter"]);
+  assert.deepEqual(workbench.state.keypresses, ["Tab", "Escape", "Enter", "Space"]);
   assert.equal(workbench.state.clicks, 0);
   assert.equal(workbench.state.fills, 0);
   assert.equal(workbench.state.navigations, 0);
   await assert.rejects(
-    () => browser.keypressTab({ tabRef: listed.tabs[0].tabRef, key: "Space", maxChars: 1000 }),
+    () => browser.keypressTab({ tabRef: listed.tabs[0].tabRef, key: "Spacebar", maxChars: 1000 }),
     (error) => {
       assert.equal(error.code, "BROWSER_KEYPRESS_KEY_INVALID");
       return true;

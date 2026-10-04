@@ -369,11 +369,11 @@ export function registerBrowserPreviewTools(server, browser, { elicitationBridge
     {
       title: "Press Fixed Key in Existing Browser Tab",
       description:
-        "Browser Operate Preview. Press exactly one fixed Enter, Tab, or Escape key at the currently focused element in one existing browser-family tabRef using the available official Browser current-focus keypress primitive, with a Playwright :focus compatibility path when DOM CUA keypress is unavailable, then perform a separate read-only DOM readback. Callers cannot supply arbitrary key names, text, modifiers, repeats, selectors, coordinates, node ids, or JavaScript. Use an existing exact click/fill first when a specific control must be focused. Tab and Escape are ordinary bounded UI controls; Enter can activate or submit the focused control, so apply codex.browser_confirmation_policy plus the current task context before calling and ask only when that exact bounded task/action class requires confirmation. Once the keypress returns successfully, a later readback failure does not make the keypress uncertain and the Browser runtime never repeats it automatically.",
+        "Browser Operate Preview. Press exactly one fixed Enter, Tab, Escape, or Space key at the currently focused element in one existing browser-family tabRef using the available official Browser current-focus keypress primitive, with a Playwright :focus compatibility path when DOM CUA keypress is unavailable, then perform a separate read-only DOM readback. Callers cannot supply arbitrary key names, text, modifiers, repeats, selectors, coordinates, node ids, or JavaScript. Use an existing exact click/fill first when a specific control must be focused. Tab and Escape are ordinary bounded UI controls; Enter and Space can activate or submit the focused control; Space may scroll when focus is elsewhere, so apply codex.browser_confirmation_policy plus the current task context before calling and ask only when that exact bounded task/action class requires confirmation. Once the keypress returns successfully, a later readback failure does not make the keypress uncertain and the Browser runtime never repeats it automatically.",
       inputSchema: z.object({
         tabRef: z.string().min(1).max(256)
           .describe("Opaque tab reference returned by codex.browser_tabs."),
-        key: z.enum(["Enter", "Tab", "Escape"])
+        key: z.enum(["Enter", "Tab", "Escape", "Space"])
           .describe("Exactly one supported fixed key. Arbitrary keys, text and modifiers are not accepted."),
         cwd: z.string().min(1).max(32_768).optional()
           .describe("Optional project cwd used only to resolve the current Codex Browser runtime."),

@@ -72,7 +72,7 @@ The public Browser surface supports both **Chrome and Edge**:
 - tab and page reads plus viewport screenshots;
 - open, close, and navigation;
 - semantic clicks and text entry;
-- bounded scrolling and `Enter` / `Tab` / `Escape`;
+- bounded scrolling and `Enter` / `Tab` / `Escape` / `Space`;
 - prepared uploads and downloads.
 
 Browser work uses the selected local browser profile and its existing site login state. Local file upload additionally requires the ChatGPT browser extension's **Allow access to file URLs** setting.
