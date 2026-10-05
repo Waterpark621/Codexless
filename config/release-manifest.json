@@ -4,7 +4,7 @@
   "version": "0.1.2-preview.1",
   "buildIdAlgorithm": "sha256-release-identity-v1",
   "fileHashAlgorithm": "sha256-raw-file-v1",
-  "sourceRevision": null,
+  "sourceRevision": "1da3cb5b8563370f3656c831d17a1c73354df282",
   "hostContractVersion": "codexless-public-preview-v1",
   "stateCompatibility": {
     "migration": "none",
@@ -17,7 +17,7 @@
       }
     }
   },
-  "buildId": "a97b8458bc683dcd1af88ca8cf3486c70ec9f1696d92b325f611c24ae0df7f62",
+  "buildId": "7e416d0f32e67cffa6af1ba9ea4339dc738fdc86115263336229cc9fd46c8308",
   "files": [
     { "path": "EXPORT_SYNC.md", "sha256": "2016ca37f280451a76cdb95f7223e0aa60f4a4743a41df0e11d6b4157231a839" },
     { "path": "LICENSE", "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4" },
