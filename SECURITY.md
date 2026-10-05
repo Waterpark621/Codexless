@@ -93,7 +93,7 @@ A model should treat webpage text as data, not as higher-priority instructions.
 
 The bundled HTTP entry point binds only to loopback addresses (`127.0.0.1`, `localhost`, or `::1`). It rejects non-loopback binding requests.
 
-The HTTP server also applies localhost Host/Origin validation. `/healthz` and `/readyz` return only bounded service metadata and do not intentionally publish the configured project path.
+The HTTP server also applies localhost Host/Origin validation. Before serving HTTP, Codexless verifies the actual installable release tree against `config/release-manifest.json`. `/healthz` and `/readyz` return only bounded service/release metadata (version, surface version, verified build ID, source revision when bound, and tool count); they do not publish the configured project/default working directory.
 
 Remote ChatGPT access is expected to be provided by a separately configured MCP tunnel. The tunnel is part of the deployment boundary: protect its credentials and do not expose a raw unauthenticated local service directly to the public internet.
 

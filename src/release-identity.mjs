@@ -150,6 +150,27 @@ export async function readReleaseIdentity(root) {
   };
 }
 
+export async function verifyReleaseTree(root, { serverVersion, hostContractVersion } = {}) {
+  const manifest = await readReleaseManifest(root);
+  const current = await buildReleaseManifest({
+    root,
+    serverVersion,
+    hostContractVersion,
+    sourceRevision: manifest.sourceRevision,
+  });
+  if (serializeReleaseManifest(current) !== serializeReleaseManifest(manifest)) {
+    throw new Error("release tree does not match config/release-manifest.json");
+  }
+  return {
+    productId: manifest.productId,
+    version: manifest.version,
+    buildId: manifest.buildId,
+    sourceRevision: manifest.sourceRevision,
+    hostContractVersion: manifest.hostContractVersion,
+    stateCompatibility: structuredClone(manifest.stateCompatibility),
+  };
+}
+
 export function validateReleaseManifest(manifest) {
   if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) throw new Error("release manifest must be an object");
   if (manifest.manifestVersion !== RELEASE_MANIFEST_VERSION) throw new Error(`unsupported release manifest version ${String(manifest.manifestVersion)}`);

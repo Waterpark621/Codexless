@@ -1,4 +1,7 @@
 import process from "node:process";
+import { assertQualifiedNodeStartupEnvironment } from "../src/node-startup-policy.mjs";
+
+assertQualifiedNodeStartupEnvironment(process.env);
 
 const mode = (process.argv[2] ?? "").toLowerCase();
 if (!new Set(["http", "stdio"]).has(mode)) {

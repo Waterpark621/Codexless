@@ -16,6 +16,7 @@ import {
   readReleaseManifest,
   serializeReleaseManifest,
   validateReleaseManifest,
+  verifyReleaseTree,
 } from "../src/release-identity.mjs";
 import { PUBLIC_SERVER_VERSION, PUBLIC_SURFACE_VERSION } from "../src/surface-contracts.mjs";
 
@@ -83,6 +84,19 @@ const current = await buildReleaseManifest({
 assert.deepEqual(committed, current, "config/release-manifest.json must match the current installable release tree");
 const committedRaw = await readFile(path.join(projectRoot, ...RELEASE_MANIFEST_RELATIVE_PATH.split("/")), "utf8");
 assert.equal(committedRaw, serializeReleaseManifest(current), "release manifest generation must be byte-for-byte replayable");
+
+const verifiedTreeIdentity = await verifyReleaseTree(projectRoot, {
+  serverVersion: PUBLIC_SERVER_VERSION,
+  hostContractVersion: PUBLIC_SURFACE_VERSION,
+});
+assert.deepEqual(verifiedTreeIdentity, {
+  productId: committed.productId,
+  version: committed.version,
+  buildId: committed.buildId,
+  sourceRevision: committed.sourceRevision,
+  hostContractVersion: committed.hostContractVersion,
+  stateCompatibility: committed.stateCompatibility,
+}, "runtime release verification must bind the manifest to the actual installable tree");
 
 const installedRoot = await mkdtemp(path.join(os.tmpdir(), "codexless-installed-identity-"));
 try {

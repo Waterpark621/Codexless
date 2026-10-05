@@ -1,7 +1,12 @@
 import http from "node:http";
 import { createRequire } from "node:module";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createCodexlessRuntime } from "./codexless-runtime.mjs";
 import { createMcpHttpSessionRouter } from "./mcp-http-session-router.mjs";
+import { buildPublicHealthMetadata } from "./public-health.mjs";
+import { verifyReleaseTree } from "./release-identity.mjs";
+import { PUBLIC_SERVER_VERSION, PUBLIC_SURFACE_VERSION } from "./surface-contracts.mjs";
 
 const require = createRequire(import.meta.url);
 const { createMcpHandler } = require("@modelcontextprotocol/server");
@@ -16,6 +21,11 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
   throw new Error(`Invalid CODEX_TOOLBOX_PUBLIC_PORT: ${process.env.CODEX_TOOLBOX_PUBLIC_PORT}`);
 }
 
+const releaseRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const releaseIdentity = await verifyReleaseTree(releaseRoot, {
+  serverVersion: PUBLIC_SERVER_VERSION,
+  hostContractVersion: PUBLIC_SURFACE_VERSION,
+});
 const runtime = await createCodexlessRuntime({ mode: "public" });
 const mcpHandler = createMcpHandler(runtime.createServer, {
   legacy: "stateless",
@@ -41,18 +51,7 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
     if (req.method === "GET" && (url.pathname === "/healthz" || url.pathname === "/readyz")) {
       res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-      res.end(JSON.stringify({
-        ok: true,
-        // Compatibility service id retained for health-check consumers; not the product name.
-        // Compatibility service id for existing public-preview health probes; not the product name.
-        service: "codexless-public",
-        transport: "streamable-http",
-        publicPreview: true,
-        version: runtime.version,
-        surfaceVersion: runtime.surfaceVersion,
-        toolCount: runtime.toolAllowlist?.length ?? null,
-        defaultCwd: runtime.authorityValidation.defaultCwd ?? null,
-      }));
+      res.end(JSON.stringify(buildPublicHealthMetadata({ runtime, releaseIdentity })));
       return;
     }
     if (url.pathname !== "/mcp") {
