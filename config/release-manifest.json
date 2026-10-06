@@ -4,7 +4,7 @@
   "version": "0.1.2-preview.1",
   "buildIdAlgorithm": "sha256-release-identity-v1",
   "fileHashAlgorithm": "sha256-raw-file-v1",
-  "sourceRevision": "1da3cb5b8563370f3656c831d17a1c73354df282",
+  "sourceRevision": "af80d290a265b414de9792b1b53600180be4c0e2",
   "hostContractVersion": "codexless-public-preview-v1",
   "stateCompatibility": {
     "migration": "none",
@@ -17,7 +17,7 @@
       }
     }
   },
-  "buildId": "7e416d0f32e67cffa6af1ba9ea4339dc738fdc86115263336229cc9fd46c8308",
+  "buildId": "15a17579c9c78448bbbd9af5a6589b1817dbf2fbae968cea7ff16a2fe4837898",
   "files": [
     { "path": "EXPORT_SYNC.md", "sha256": "2016ca37f280451a76cdb95f7223e0aa60f4a4743a41df0e11d6b4157231a839" },
     { "path": "LICENSE", "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4" },
@@ -41,7 +41,7 @@
     { "path": "config/skill-lane-policy.json", "sha256": "f9b5c189c244c13437c2e4296dcc3e5b31d461f42d44a95f93d6f737655a392c" },
     { "path": "config/toolbox-method-registry.json", "sha256": "72ed3d39c506473b11d7b15165aadc15a1d3531fa17e18adab5ac99763279ba9" },
     { "path": "npm-shrinkwrap.json", "sha256": "ce7f6ab9dc8ca237ecfb8f396ac9e56706e335309d934e28144b3955112a40cb" },
-    { "path": "package.json", "sha256": "dfff84e913240978224348ca3e47402fead42206c02ab788fc45b7387f6025f4" },
+    { "path": "package.json", "sha256": "1b88d2b11291ccae8f2993ea5634f6fadaf49983ed0eecc7147e3dd5441c0258" },
     { "path": "scripts/bootstrap-archive.ps1", "sha256": "c972086d15333bb5a4f14ddeb814500bc25440f77ee13a03c6e3fccca07c59a5" },
     { "path": "scripts/bootstrap-archive.sh", "sha256": "b557b54e58097829ff67527cccbd2c4f327c56e0445561b0286b72cd39380ab2" },
     { "path": "scripts/bootstrap.mjs", "sha256": "0cb1a5152f3ed9e7c18ad37e77300560fd0bd57e22dc5c5f20d0a8baafe817e2" },
@@ -119,7 +119,7 @@
     { "path": "src/recent-call-diagnostics.mjs", "sha256": "f837438127f25d68fb129c5c664ce164c4d4086930a8266a13cbd2e3810d260d" },
     { "path": "src/recent-call-http.mjs", "sha256": "3c31b6cbf51b82274191e5577f04c2e5e84680dd431ed1e7e00f0d42c8197fce" },
     { "path": "src/recent-call-receipts.mjs", "sha256": "947bf86f6119ef554605697f4815ab7246112d5a1c07f63d2dc3a891217ced89" },
-    { "path": "src/release-discovery.mjs", "sha256": "927f450fe6a8c0f0697bd38883aaf7bb4c241d4c0be97ce9b3a72f9732ccdf7c" },
+    { "path": "src/release-discovery.mjs", "sha256": "ba15ed45f02a37ad1e4832ed851e51b8a28c10641ed026f87f5c6b7141cde419" },
     { "path": "src/release-identity.mjs", "sha256": "155b6076fa7973b481f9066e1c0ba347a3739b97cc8d0c3d909a6d23ce4c2006" },
     { "path": "src/runtime-routing-policy.mjs", "sha256": "ad63e4616af3617627c43c1770a1190a36a086fd8cd755dee0dbcac2f9bad3be" },
     { "path": "src/stock-prompt-input-skill-routing.mjs", "sha256": "2138134019ade3e4596d2cd156db2813b23250b0f91193e6e9e2944420e61768" },
