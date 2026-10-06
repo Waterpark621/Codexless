@@ -11,7 +11,7 @@ import { validateReleaseManifest } from "./release-identity.mjs";
 import { codexlessPlatformSupport } from "./platform-support.mjs";
 
 export const CODEXLESS_GITHUB_REPOSITORY = Object.freeze({
-  owner: "liyana31811",
+  owner: "Waterpark621",
   repo: "Codexless",
 });
 export const CODEXLESS_GITHUB_API_BASE = `https://api.github.com/repos/${CODEXLESS_GITHUB_REPOSITORY.owner}/${CODEXLESS_GITHUB_REPOSITORY.repo}`;

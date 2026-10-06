@@ -12,7 +12,7 @@ import {
   readRuntimeRoutingState,
   writeRuntimeInstallPreference,
 } from "../src/runtime-routing-policy.mjs";
-import { HOUSEHOLD_TOOL_ALLOWLIST, PUBLIC_TOOL_ALLOWLIST } from "../src/surface-contracts.mjs";
+import { PUBLIC_TOOL_ALLOWLIST } from "../src/surface-contracts.mjs";
 
 const require = createRequire(import.meta.url);
 const { Client } = require("@modelcontextprotocol/client");
@@ -28,7 +28,7 @@ function freshManagedChildEnv() {
   return env;
 }
 
-async function withManagedClient(run, { entrypoint = "mcp-stdio-household.mjs" } = {}) {
+async function withManagedClient(run, { entrypoint = "mcp-stdio-public.mjs" } = {}) {
   const tempHome = await mkdtemp(path.join(os.tmpdir(), "codexless-managed-surface-"));
   const client = new Client({ name: "codexless-managed-runtime-surface-test", version: "1" });
   const transport = new StdioClientTransport({
@@ -209,7 +209,7 @@ test("persisted dual_ready keeps Managed model-free serving when Existing is bro
   }
 });
 
-test("managed household surface is model-free and hard-blocks Formal Agent before any Existing fallback", async (t) => {
+test("shipped managed public surface is model-free and hard-blocks Formal Agent before any Existing fallback", async (t) => {
   if (process.platform !== "win32" || process.arch !== "x64") {
     t.skip("Managed Runtime Preview hard-platform integration fixture is Windows x64");
     return;
@@ -217,7 +217,8 @@ test("managed household surface is model-free and hard-blocks Formal Agent befor
   await withManagedClient(async (client) => {
     const listed = await client.listTools();
     const names = listed.tools.map((tool) => tool.name);
-    assert.deepEqual(names, [...HOUSEHOLD_TOOL_ALLOWLIST]);
+    assert.deepEqual([...names].sort(), [...PUBLIC_TOOL_ALLOWLIST].sort());
+    assert.equal(names.length, 44);
     assert.equal(names.includes("codex.browser_webmcp_discover"), false, "external Chrome/Edge WebMCP must stay hidden until the upstream extension runtime exposes webmcp");
     assert.equal(names.includes("codex.browser_webmcp_call"), false, "external Chrome/Edge WebMCP must stay hidden until the upstream extension runtime exposes webmcp");
     assert.equal(PUBLIC_TOOL_ALLOWLIST.includes("codex.browser_webmcp_discover"), false, "Q75 exposure rollback must not widen the public preview");
@@ -261,24 +262,14 @@ test("managed household surface is model-free and hard-blocks Formal Agent befor
     assert.equal(readMany.isError, false);
     assert.equal(readMany.structuredContent?.count, 1);
 
-    const processStart = await client.callTool({
-      name: "codex.process",
-      arguments: { action: "start", command: [process.execPath, "-e", "process.stdout.write('MANAGED_FRONTDOOR_PROCESS_OK')"], cwd: root, tty: false, timeoutMs: 5_000 },
-    });
-    assert.equal(processStart.isError, false);
-    const processRef = processStart.structuredContent?.processRef;
-    const receiptRef = processStart.structuredContent?.receiptRef;
-    let processPoll = null;
-    for (let attempt = 0; attempt < 50; attempt += 1) {
-      processPoll = await client.callTool({ name: "codex.process", arguments: { action: "poll", processRef } });
-      if (processPoll.structuredContent?.status === "exited") break;
-      await new Promise((resolve) => setTimeout(resolve, 20));
+    for (const privateTool of ["codex.process", "codex.process_receipt", "codex.fs_read", "codex.catalog"]) {
+      assert.equal(names.includes(privateTool), false, `${privateTool} must remain outside the shipped public surface`);
     }
-    assert.equal(processPoll?.structuredContent?.status, "exited");
-    const processReceipt = await client.callTool({ name: "codex.process_receipt", arguments: { receiptRef } });
-    assert.equal(processReceipt.isError, false);
-    assert.equal(processReceipt.structuredContent?.stdout, "MANAGED_FRONTDOOR_PROCESS_OK");
-    assert.equal(processReceipt.structuredContent?.exit?.exitCode, 0);
+    await assert.rejects(
+      client.callTool({ name: "codex.process", arguments: { action: "start" } }),
+      /Tool codex\.process not found/,
+      "excluded private route must be rejected by the protocol without dispatch"
+    );
 
     const blockedCommand = await client.callTool({
       name: "codex.command_exec",
@@ -288,8 +279,8 @@ test("managed household surface is model-free and hard-blocks Formal Agent befor
     assert.equal(blockedCommand.structuredContent?.errorCode, "FORMAL_CODEX_AGENT_REQUIRED");
 
     const blockedProcess = await client.callTool({
-      name: "codex.process",
-      arguments: { action: "start", command: [managedBin, "review", "MUST_NOT_RUN"], cwd: root, tty: false, timeoutMs: 5_000 },
+      name: "codex.command_exec",
+      arguments: { command: [managedBin, "review", "MUST_NOT_RUN"], cwd: root, access: "readOnly", timeoutMs: 5_000 },
     });
     assert.equal(blockedProcess.isError, true);
     assert.equal(blockedProcess.structuredContent?.errorCode, "FORMAL_CODEX_AGENT_REQUIRED");

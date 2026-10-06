@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
+import { saveCodexCallProfile } from "../src/codex-call-profile.mjs";
 import { resolveCodexExecutable } from "../src/codex-bin.mjs";
 import { PUBLIC_SURFACE_VERSION, PUBLIC_TOOL_NAMES } from "../src/surface-contracts.mjs";
 
@@ -16,6 +17,20 @@ const projectRoot = path.resolve(import.meta.dirname, "..");
 const codexBin = (await resolveCodexExecutable()).path;
 const testCwd = process.env.CODEXLESS_TEST_CWD;
 const contractStateRoot = mkdtempSync(path.join(os.tmpdir(), "codexless-public-contract-"));
+// Explicit provenance is required for inherit; legacy read-only settings alone
+// cannot prove the active ceiling. This fixture never borrows user config/auth.
+const codexHome = path.join(contractStateRoot, "codex-home");
+mkdirSync(codexHome);
+writeFileSync(path.join(codexHome, "config.toml"), [
+  'default_permissions = ":read-only"',
+  '[features]', 'plugins = false', 'apps = false', '[mcp_servers]',
+  ...[...new Set([projectRoot, testCwd].filter(Boolean))].flatMap((cwd) => [
+    `[projects.${JSON.stringify(cwd)}]`, 'trust_level = "trusted"',
+  ]),
+].join("\n") + "\n");
+const callProfileFile = path.join(contractStateRoot, "call-profile.md");
+saveCodexCallProfile({ filePath: callProfileFile, requireCallApproval: true,
+  instruction: "Synthetic consent fixture: prepare only; never start a model turn." });
 const recentCallStateFile = path.join(contractStateRoot, "recent-calls.json");
 const agentTaskStateFile = path.join(contractStateRoot, "agent-task-cards.json");
 process.once("exit", () => rmSync(contractStateRoot, { recursive: true, force: true }));
@@ -27,6 +42,8 @@ function createIsolatedPublicTestEnv(extra = {}) {
   }
   Object.assign(env, {
     CODEX_BIN: codexBin,
+    CODEX_HOME: codexHome,
+    CODEXLESS_CALL_PROFILE_FILE: callProfileFile,
     // Poison legacy Toolwire variables deliberately. A clean Codexless runtime must ignore all of them.
     CODEX_TOOLBOX_DEFAULT_CWD: "Z:\\codexless-must-ignore",
     CODEX_TOOLBOX_PROFILE: "__codexless_must_ignore__",
@@ -153,7 +170,7 @@ try {
     name: "codex.agent_start",
     arguments: { prompt, requestId, invocationRationale: "Public contract probe for fixed-text approval." },
   });
-  assert.equal(prepared.isError, false);
+  assert.equal(prepared.isError, false, prepared.structuredContent?.error ?? "consent preparation must succeed with explicit fixture provenance");
   assert.equal(prepared.structuredContent?.status, "consent_required");
   assert.equal(prepared.structuredContent?.turnId, null);
   assert.equal(prepared.structuredContent?.agentRef, null);

@@ -32,6 +32,8 @@ const packageJson = JSON.parse(await readFile(new URL("../package.json", import.
 assert.equal(packageJson.repository.url, `git+https://github.com/${CODEXLESS_GITHUB_REPOSITORY.owner}/${CODEXLESS_GITHUB_REPOSITORY.repo}.git`, "package repository must match the single discovery repository identity");
 assert.equal(packageJson.homepage.startsWith(`https://github.com/${CODEXLESS_GITHUB_REPOSITORY.owner}/${CODEXLESS_GITHUB_REPOSITORY.repo}`), true, "homepage must match the discovery repository identity");
 
+assert.deepEqual(CODEXLESS_GITHUB_REPOSITORY, { owner: "Waterpark621", repo: "Codexless" }, "maintained publisher identity is independent of local Git remotes/history");
+
 const artifactBytes = Buffer.from("CODEXLESS_TEST_ARTIFACT\n", "utf8");
 const artifactSha = sha256(artifactBytes);
 const targetVersion = "0.2.0-preview.0";
